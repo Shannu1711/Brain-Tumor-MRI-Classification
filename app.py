@@ -1,7 +1,6 @@
 import streamlit as st
 import tensorflow as tf
 import numpy as np
-import pandas as pd
 from PIL import Image
 
 # ---------------------------------------------------------
@@ -27,17 +26,13 @@ st.markdown(
         .block-container {
             padding-top: 2rem;
             padding-bottom: 3rem;
-            max-width: 1250px;
+            max-width: 1200px;
         }
 
         .hero {
             padding: 2rem 2.2rem;
             border-radius: 22px;
-            background: linear-gradient(
-                135deg,
-                rgba(37,99,235,0.22),
-                rgba(124,58,237,0.18)
-            );
+            background: linear-gradient(135deg, rgba(37,99,235,0.22), rgba(124,58,237,0.18));
             border: 1px solid rgba(255,255,255,0.08);
             box-shadow: 0 10px 30px rgba(0,0,0,0.25);
             margin-bottom: 1.8rem;
@@ -63,24 +58,19 @@ st.markdown(
         }
 
         .result-card {
-            background: linear-gradient(
-                135deg,
-                rgba(34,197,94,0.18),
-                rgba(16,185,129,0.12)
-            );
+            background: linear-gradient(135deg, rgba(34,197,94,0.18), rgba(16,185,129,0.12));
             border: 1px solid rgba(34,197,94,0.25);
-            border-radius: 18px;
-            padding: 1.2rem;
-            margin-top: 0.8rem;
-            margin-bottom: 1rem;
+            border-radius: 20px;
+            padding: 1.5rem;
+            margin-top: 1rem;
         }
 
-        .warning-card {
-            background: rgba(245,158,11,0.12);
-            border: 1px solid rgba(245,158,11,0.25);
-            border-radius: 18px;
-            padding: 1rem;
-            margin-top: 0.8rem;
+        .metric-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 1rem 1.2rem;
+            text-align: center;
         }
 
         .small-muted {
@@ -113,7 +103,7 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# LOAD MODEL
+# MODEL
 # ---------------------------------------------------------
 @st.cache_resource
 def load_trained_model():
@@ -129,31 +119,7 @@ class_names = [
 ]
 
 # ---------------------------------------------------------
-# BASIC MRI-LIKE VALIDATION
-# ---------------------------------------------------------
-def is_probably_mri(image):
-    """
-    Simple heuristic to reject obvious colorful non-MRI images.
-    This is NOT a medical validation system.
-    """
-
-    image = image.convert("RGB")
-    arr = np.array(image)
-
-    r = arr[:, :, 0].astype(float)
-    g = arr[:, :, 1].astype(float)
-    b = arr[:, :, 2].astype(float)
-
-    color_difference = (
-        np.mean(np.abs(r - g))
-        + np.mean(np.abs(g - b))
-        + np.mean(np.abs(r - b))
-    ) / 3
-
-    return color_difference < 18
-
-# ---------------------------------------------------------
-# IMAGE PREPROCESSING
+# PREPROCESSING
 # ---------------------------------------------------------
 def preprocess_image(image):
     image = image.convert("RGB")
@@ -183,13 +149,7 @@ with st.sidebar:
     st.write("Custom CNN Accuracy: **76.88%**")
     st.write("MobileNetV2 Accuracy: **82.00%**")
 
-    st.markdown("### Batch Upload")
-    st.write(
-        "Upload multiple MRI images together and review predictions in one run."
-    )
-
     st.markdown("---")
-
     st.caption(
         "Educational project only. Not intended for clinical diagnosis."
     )
@@ -202,9 +162,8 @@ st.markdown(
     <div class="hero">
         <h1>🧠 Brain Tumor MRI Classification</h1>
         <p>
-            Upload one or multiple brain MRI images and receive
-            AI-powered predictions with confidence scores using
-            MobileNetV2 transfer learning.
+            Upload a brain MRI image and receive an AI-powered prediction
+            with class-wise confidence scores using MobileNetV2 transfer learning.
         </p>
     </div>
     """,
@@ -212,231 +171,110 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# UPLOAD SECTION
+# MAIN LAYOUT
 # ---------------------------------------------------------
-st.markdown("### 📤 Upload Brain MRI Images")
+left_col, right_col = st.columns([1.05, 0.95], gap="large")
 
-st.info(
-    "Upload brain MRI scans only. "
-    "You can select multiple JPG, JPEG, or PNG images at once."
-)
+with left_col:
+    st.markdown("### 📤 Upload MRI Image")
 
-uploaded_files = st.file_uploader(
-    "Choose MRI images",
-    type=["jpg", "jpeg", "png"],
-    accept_multiple_files=True,
-    label_visibility="collapsed"
-)
-
-# ---------------------------------------------------------
-# PROCESS BATCH
-# ---------------------------------------------------------
-if uploaded_files:
-
-    st.write(f"**{len(uploaded_files)} image(s) selected**")
-
-    run_prediction = st.button(
-        "🔍 Analyze All Images"
+    uploaded_file = st.file_uploader(
+        "Choose a JPG, JPEG, or PNG image",
+        type=["jpg", "jpeg", "png"],
+        label_visibility="collapsed"
     )
 
-    if run_prediction:
+    if uploaded_file is not None:
+        image = Image.open(uploaded_file)
 
-        results = []
-
-        progress_bar = st.progress(0)
-
-        for index, uploaded_file in enumerate(uploaded_files):
-
-            image = Image.open(uploaded_file)
-
-            st.markdown("---")
-            st.markdown(f"## {index + 1}. {uploaded_file.name}")
-
-            left_col, right_col = st.columns(
-                [0.9, 1.1],
-                gap="large"
-            )
-
-            with left_col:
-                st.image(
-                    image,
-                    caption=uploaded_file.name,
-                    use_container_width=True
-                )
-
-            with right_col:
-
-                if not is_probably_mri(image):
-
-                    st.warning(
-                        "⚠️ This image does not appear to be a typical grayscale MRI image."
-                    )
-
-                    results.append(
-                        {
-                            "File Name": uploaded_file.name,
-                            "Prediction": "Invalid / Uncertain Input",
-                            "Confidence (%)": 0.0,
-                            "Status": "Rejected by basic MRI check"
-                        }
-                    )
-
-                else:
-
-                    processed_image = preprocess_image(image)
-
-                    prediction = model.predict(
-                        processed_image,
-                        verbose=0
-                    )[0]
-
-                    predicted_index = int(
-                        np.argmax(prediction)
-                    )
-
-                    predicted_class = (
-                        class_names[predicted_index]
-                    )
-
-                    confidence = float(
-                        prediction[predicted_index] * 100
-                    )
-
-                    # Extra confidence safeguard
-                    if confidence < 70:
-
-                        st.warning(
-                            f"⚠️ Model confidence is only {confidence:.2f}%. "
-                            "The image may be unclear, unusual, or outside the model's expected input."
-                        )
-
-                        display_prediction = (
-                            f"Uncertain ({predicted_class})"
-                        )
-
-                        status = "Low confidence"
-
-                    else:
-
-                        display_prediction = predicted_class
-                        status = "Prediction accepted"
-
-                        st.markdown(
-                            f"""
-                            <div class="result-card">
-                                <h3>Prediction</h3>
-                                <h2>{predicted_class}</h2>
-                                <p class="small-muted">
-                                    Confidence: {confidence:.2f}%
-                                </p>
-                            </div>
-                            """,
-                            unsafe_allow_html=True
-                        )
-
-                    st.markdown("### Class Confidence Scores")
-
-                    for name, probability in zip(
-                        class_names,
-                        prediction
-                    ):
-                        score = float(
-                            probability * 100
-                        )
-
-                        st.write(
-                            f"**{name}** — {score:.2f}%"
-                        )
-
-                        st.progress(
-                            min(int(score), 100)
-                        )
-
-                    results.append(
-                        {
-                            "File Name": uploaded_file.name,
-                            "Prediction": display_prediction,
-                            "Confidence (%)": round(confidence, 2),
-                            "Status": status
-                        }
-                    )
-
-            progress_bar.progress(
-                int(((index + 1) / len(uploaded_files)) * 100)
-            )
-
-        # -------------------------------------------------
-        # BATCH SUMMARY
-        # -------------------------------------------------
-        st.markdown("---")
-        st.markdown("## 📊 Batch Prediction Summary")
-
-        results_df = pd.DataFrame(results)
-
-        st.dataframe(
-            results_df,
-            use_container_width=True,
-            hide_index=True
+        st.image(
+            image,
+            caption="Uploaded MRI Scan",
+            use_container_width=True
         )
 
-        accepted_count = (
-            results_df["Status"]
-            .eq("Prediction accepted")
-            .sum()
+        predict_clicked = st.button("🔍 Predict Tumor Type")
+
+    else:
+        st.markdown(
+            """
+            <div class="info-card">
+                <b>How to use:</b><br><br>
+                1. Upload a brain MRI image<br>
+                2. Click <b>Predict Tumor Type</b><br>
+                3. Review the predicted class and confidence scores
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        predict_clicked = False
+
+with right_col:
+    st.markdown("### 📊 Prediction Result")
+
+    if uploaded_file is None:
+        st.markdown(
+            """
+            <div class="info-card">
+                <h4>No prediction yet</h4>
+                <p class="small-muted">
+                    Upload an MRI image to view the classification result here.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
-        low_confidence_count = (
-            results_df["Status"]
-            .eq("Low confidence")
-            .sum()
+    elif predict_clicked:
+
+        processed_image = preprocess_image(image)
+
+        with st.spinner("Analyzing MRI image..."):
+            prediction = model.predict(
+                processed_image,
+                verbose=0
+            )[0]
+
+        predicted_index = int(np.argmax(prediction))
+        predicted_class = class_names[predicted_index]
+        confidence = float(prediction[predicted_index] * 100)
+
+        st.markdown(
+            f"""
+            <div class="result-card">
+                <h3>Prediction</h3>
+                <h2>{predicted_class}</h2>
+                <p class="small-muted">
+                    The model assigned the highest probability to this class.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
-        rejected_count = (
-            results_df["Status"]
-            .eq("Rejected by basic MRI check")
-            .sum()
-        )
+        st.markdown("")
 
-        col1, col2, col3, col4 = st.columns(4)
+        metric1, metric2 = st.columns(2)
 
-        with col1:
+        with metric1:
             st.metric(
-                "Total Images",
-                len(results_df)
+                "Confidence",
+                f"{confidence:.2f}%"
             )
 
-        with col2:
+        with metric2:
             st.metric(
-                "Accepted",
-                int(accepted_count)
+                "Model",
+                "MobileNetV2"
             )
 
-        with col3:
-            st.metric(
-                "Low Confidence",
-                int(low_confidence_count)
-            )
+        st.markdown("### Class Confidence Scores")
 
-        with col4:
-            st.metric(
-                "Rejected",
-                int(rejected_count)
-            )
+        for name, probability in zip(class_names, prediction):
+            score = float(probability * 100)
 
-else:
-
-    st.markdown(
-        """
-        <div class="info-card">
-            <b>How to test the application:</b><br><br>
-            1. Select one or more brain MRI images<br>
-            2. Click <b>Analyze All Images</b><br>
-            3. Review each prediction and confidence score<br>
-            4. Check the batch summary table at the bottom
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+            st.write(f"**{name}** — {score:.2f}%")
+            st.progress(min(int(score), 100))
 
 # ---------------------------------------------------------
 # FOOTER
@@ -445,11 +283,7 @@ st.markdown("---")
 
 st.markdown(
     """
-    <div style="
-        text-align:center;
-        color:#94a3b8;
-        font-size:0.9rem;
-    ">
+    <div style="text-align:center; color:#94a3b8; font-size:0.9rem;">
         Brain Tumor MRI Image Classification |
         Deep Learning • TensorFlow • MobileNetV2 • Streamlit
     </div>
