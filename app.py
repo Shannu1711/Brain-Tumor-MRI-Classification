@@ -32,7 +32,11 @@ st.markdown(
         .hero {
             padding: 2rem 2.2rem;
             border-radius: 22px;
-            background: linear-gradient(135deg, rgba(37,99,235,0.22), rgba(124,58,237,0.18));
+            background: linear-gradient(
+                135deg,
+                rgba(37,99,235,0.22),
+                rgba(124,58,237,0.18)
+            );
             border: 1px solid rgba(255,255,255,0.08);
             box-shadow: 0 10px 30px rgba(0,0,0,0.25);
             margin-bottom: 1.8rem;
@@ -58,19 +62,15 @@ st.markdown(
         }
 
         .result-card {
-            background: linear-gradient(135deg, rgba(34,197,94,0.18), rgba(16,185,129,0.12));
+            background: linear-gradient(
+                135deg,
+                rgba(34,197,94,0.18),
+                rgba(16,185,129,0.12)
+            );
             border: 1px solid rgba(34,197,94,0.25);
             border-radius: 20px;
             padding: 1.5rem;
             margin-top: 1rem;
-        }
-
-        .metric-card {
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 16px;
-            padding: 1rem 1.2rem;
-            text-align: center;
         }
 
         .small-muted {
@@ -103,7 +103,7 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# MODEL
+# LOAD MODEL
 # ---------------------------------------------------------
 @st.cache_resource
 def load_trained_model():
@@ -119,7 +119,35 @@ class_names = [
 ]
 
 # ---------------------------------------------------------
-# PREPROCESSING
+# MRI-LIKE IMAGE VALIDATION
+# ---------------------------------------------------------
+def is_probably_mri(image):
+    """
+    Basic heuristic to reject obvious non-MRI images.
+
+    Important:
+    This does NOT medically verify that an image is a brain MRI.
+    It only checks whether the image is sufficiently grayscale-like.
+    """
+
+    image = image.convert("RGB")
+    arr = np.array(image)
+
+    r = arr[:, :, 0].astype(float)
+    g = arr[:, :, 1].astype(float)
+    b = arr[:, :, 2].astype(float)
+
+    color_difference = (
+        np.mean(np.abs(r - g))
+        + np.mean(np.abs(g - b))
+        + np.mean(np.abs(r - b))
+    ) / 3
+
+    return color_difference < 18
+
+
+# ---------------------------------------------------------
+# PREPROCESS IMAGE
 # ---------------------------------------------------------
 def preprocess_image(image):
     image = image.convert("RGB")
@@ -129,6 +157,7 @@ def preprocess_image(image):
     image_array = np.expand_dims(image_array, axis=0)
 
     return image_array
+
 
 # ---------------------------------------------------------
 # SIDEBAR
@@ -150,12 +179,14 @@ with st.sidebar:
     st.write("MobileNetV2 Accuracy: **82.00%**")
 
     st.markdown("---")
+
     st.caption(
-        "Educational project only. Not intended for clinical diagnosis."
+        "Educational project only. "
+        "Not intended for clinical diagnosis."
     )
 
 # ---------------------------------------------------------
-# HERO
+# HERO SECTION
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -173,16 +204,29 @@ st.markdown(
 # ---------------------------------------------------------
 # MAIN LAYOUT
 # ---------------------------------------------------------
-left_col, right_col = st.columns([1.05, 0.95], gap="large")
+left_col, right_col = st.columns(
+    [1.05, 0.95],
+    gap="large"
+)
 
+# ---------------------------------------------------------
+# LEFT COLUMN - IMAGE UPLOAD
+# ---------------------------------------------------------
 with left_col:
     st.markdown("### 📤 Upload MRI Image")
+
+    st.info(
+        "Please upload a brain MRI scan only. "
+        "Predictions on unrelated images are not meaningful."
+    )
 
     uploaded_file = st.file_uploader(
         "Choose a JPG, JPEG, or PNG image",
         type=["jpg", "jpeg", "png"],
         label_visibility="collapsed"
     )
+
+    predict_clicked = False
 
     if uploaded_file is not None:
         image = Image.open(uploaded_file)
@@ -193,7 +237,48 @@ with left_col:
             use_container_width=True
         )
 
-        predict_clicked = st.button("🔍 Predict Tumor Type")
+        predict_clicked = st.button(
+            "🔍 Predict Tumor Type"
+        )
+
+        if predict_clicked:
+
+            # Clear old prediction first
+            st.session_state.pop("prediction", None)
+            st.session_state.pop("predicted_class", None)
+            st.session_state.pop("confidence", None)
+
+            if not is_probably_mri(image):
+
+                st.error(
+                    "⚠️ This image does not appear to be a brain MRI scan. "
+                    "Please upload a valid grayscale brain MRI image."
+                )
+
+            else:
+                processed_image = preprocess_image(image)
+
+                with st.spinner("Analyzing MRI image..."):
+                    prediction = model.predict(
+                        processed_image,
+                        verbose=0
+                    )[0]
+
+                predicted_index = int(
+                    np.argmax(prediction)
+                )
+
+                predicted_class = (
+                    class_names[predicted_index]
+                )
+
+                confidence = float(
+                    prediction[predicted_index] * 100
+                )
+
+                st.session_state["prediction"] = prediction
+                st.session_state["predicted_class"] = predicted_class
+                st.session_state["confidence"] = confidence
 
     else:
         st.markdown(
@@ -207,12 +292,15 @@ with left_col:
             """,
             unsafe_allow_html=True
         )
-        predict_clicked = False
 
+# ---------------------------------------------------------
+# RIGHT COLUMN - RESULTS
+# ---------------------------------------------------------
 with right_col:
     st.markdown("### 📊 Prediction Result")
 
     if uploaded_file is None:
+
         st.markdown(
             """
             <div class="info-card">
@@ -225,19 +313,11 @@ with right_col:
             unsafe_allow_html=True
         )
 
-    elif predict_clicked:
+    elif "prediction" in st.session_state:
 
-        processed_image = preprocess_image(image)
-
-        with st.spinner("Analyzing MRI image..."):
-            prediction = model.predict(
-                processed_image,
-                verbose=0
-            )[0]
-
-        predicted_index = int(np.argmax(prediction))
-        predicted_class = class_names[predicted_index]
-        confidence = float(prediction[predicted_index] * 100)
+        prediction = st.session_state["prediction"]
+        predicted_class = st.session_state["predicted_class"]
+        confidence = st.session_state["confidence"]
 
         st.markdown(
             f"""
@@ -270,11 +350,36 @@ with right_col:
 
         st.markdown("### Class Confidence Scores")
 
-        for name, probability in zip(class_names, prediction):
-            score = float(probability * 100)
+        for name, probability in zip(
+            class_names,
+            prediction
+        ):
+            score = float(
+                probability * 100
+            )
 
-            st.write(f"**{name}** — {score:.2f}%")
-            st.progress(min(int(score), 100))
+            st.write(
+                f"**{name}** — {score:.2f}%"
+            )
+
+            st.progress(
+                min(int(score), 100)
+            )
+
+    else:
+
+        st.markdown(
+            """
+            <div class="info-card">
+                <h4>Waiting for a valid MRI image</h4>
+                <p class="small-muted">
+                    The prediction result will appear here after a valid
+                    MRI-like image passes the basic input check.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 # ---------------------------------------------------------
 # FOOTER
@@ -283,7 +388,11 @@ st.markdown("---")
 
 st.markdown(
     """
-    <div style="text-align:center; color:#94a3b8; font-size:0.9rem;">
+    <div style="
+        text-align:center;
+        color:#94a3b8;
+        font-size:0.9rem;
+    ">
         Brain Tumor MRI Image Classification |
         Deep Learning • TensorFlow • MobileNetV2 • Streamlit
     </div>
