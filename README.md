@@ -1,57 +1,141 @@
-# Brain Tumor MRI Image Classification
+# 🧠 Brain Tumor MRI Image Classification
 
-A deep learning project for classifying brain MRI images into four categories:
+A deep learning-based medical imaging project that classifies brain MRI images into four categories using **MobileNetV2 Transfer Learning** and deploys the trained model through a **Streamlit web application**.
+
+---
+
+## 🚀 Live Demo
+
+👉 **Try the deployed Streamlit app here:**
+
+https://brain-tumor-mri-classification-fkwciu5eztjenzhjdccxbh.streamlit.app
+
+---
+
+## 📌 Project Overview
+
+This project was developed to classify brain MRI images into the following categories:
 
 - Glioma
 - Meningioma
 - No Tumor
 - Pituitary Tumor
 
-## Project Overview
+Two deep learning approaches were evaluated:
 
-This project compares a Custom CNN model with a MobileNetV2 transfer learning model.
+- Custom CNN
+- MobileNetV2 Transfer Learning
 
-The final Streamlit application allows users to upload a brain MRI image and receive:
+The final model was deployed using Streamlit so users can upload an MRI image and receive a predicted tumor class along with confidence scores.
 
-- Predicted tumor class
-- Prediction confidence
-- Confidence scores for all classes
+---
 
-## Model Performance
+## 📊 Model Performance
 
-| Model | Test Accuracy |
-|---|---:|
-| Custom CNN | 76.88% |
-| MobileNetV2 | 82.00% |
+| Model | Test Accuracy | Test Loss |
+|---|---:|---:|
+| Custom CNN | 76.88% | 0.7992 |
+| MobileNetV2 | 82.00% | 0.5460 |
 
-MobileNetV2 was selected for deployment because it achieved better overall performance.
+### Final Selected Model
+**MobileNetV2**
 
-## Technologies Used
+MobileNetV2 was selected because it achieved better overall performance with higher accuracy and lower test loss.
+
+---
+
+## 🧪 Classification Performance
+
+MobileNetV2 achieved:
+
+- Accuracy: **82.00%**
+- Macro Precision: **0.83**
+- Macro Recall: **0.82**
+- Macro F1-score: **0.81**
+
+---
+
+## 🖥️ Streamlit Application
+
+The deployed application allows users to:
+
+- Upload brain MRI images
+- Preview the uploaded scan
+- Predict the tumor category
+- View prediction confidence
+- View class-wise confidence scores
+
+### Supported Classes
+
+- Glioma
+- Meningioma
+- No Tumor
+- Pituitary Tumor
+
+---
+
+## 🧠 Model Architecture
+
+The final model uses:
+
+- MobileNetV2
+- ImageNet pretrained weights
+- Global Average Pooling
+- Dense layer
+- Dropout
+- Softmax classification
+
+Input image size:
+
+`224 x 224 x 3`
+
+---
+
+## 🔄 Project Workflow
+
+1. Dataset exploration
+2. Image preprocessing
+3. Image resizing
+4. Pixel normalization
+5. Data augmentation
+6. Custom CNN model development
+7. MobileNetV2 transfer learning
+8. Model training
+9. Model evaluation
+10. Confusion matrix analysis
+11. Model comparison
+12. Streamlit deployment
+
+---
+
+## 🛠️ Technologies Used
 
 - Python
-- TensorFlow / Keras
+- TensorFlow
+- Keras
 - MobileNetV2
-- Deep Learning
-- Transfer Learning
-- Image Preprocessing
-- Data Augmentation
-- Streamlit
 - NumPy
 - Pillow
+- Matplotlib
+- Seaborn
+- Scikit-learn
+- Streamlit
+- Google Colab
+- GitHub
 
-## Files
+---
 
-- app.py - Streamlit application
-- best_mobilenetv2.h5 - trained model
-- requirements.txt - project dependencies
+## 📂 Project Structure
 
-## Run Locally
+```text
+Brain-Tumor-MRI-Classification/
+│
+├── app.py
+├── best_mobilenetv2.h5
+├── requirements.txt
+└── README.md
 
-pip install -r requirements.txt
 
-streamlit run app.py
-
-## Disclaimer
-
-This application is developed for educational and project demonstration purposes only.
-It is not intended to replace professional medical diagnosis.
+⚠️ Disclaimer
+This project is developed for educational and demonstration purposes only.
+The application is not intended for real-world clinical diagnosis and should not be used as a substitute for professional medical advice, diagnosis, or treatment.
